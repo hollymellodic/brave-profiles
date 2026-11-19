@@ -1,0 +1,12 @@
+# Rust / Tauri
+app-tauri/target/
+*.pdb
+
+# Build output
+dist/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

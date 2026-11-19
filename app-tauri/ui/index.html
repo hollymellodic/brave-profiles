@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Brave Profile Manager</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg:#f5f6f8; --surface:#fff; --line:#e2e5ea; --text:#0f172a; --muted:#5a6472; --faint:#98a1af;
+    --accent:#6d4aff; --accent-strong:#5b3be0; --accent-soft:#efeaff; --accent-text:#4a2ebd;
+    --ok:#10713d; --ok-soft:#e7f6ec; --run:#0a6c99; --run-soft:#e3f2fa;
+    --danger:#b4232b; --danger-soft:#fdeaea;
+    --focus:0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0e1013; --surface:#15181e; --line:#252a33; --text:#e9ebf0; --muted:#9aa3b1; --faint:#6b7482;
+      --accent:#9a86ff; --accent-strong:#b0a0ff; --accent-soft:#1e1b33; --accent-text:#c9bcff;
+      --ok:#57d98a; --ok-soft:#12261a; --run:#63c6ef; --run-soft:#0f2230;
+      --danger:#ff8188; --danger-soft:#2a1416;
+    }
+  }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--text); display:flex; flex-direction:column;
+         font:13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing:antialiased; }
+  button, input { font:inherit; color:inherit; }
+  :focus-visible { outline:none; box-shadow:var(--focus); }
+
+  header { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--line); }
+  .logo { width:20px; height:20px; border-radius:5px; display:grid; place-items:center; flex:none;
+          background:linear-gradient(135deg,#7c5cff,#a78bfa); color:#fff; }
+  .logo svg { width:12px; height:12px; }
+  .meta { min-width:0; overflow:hidden; text-overflow:ellipsis; font-size:12.5px; color:var(--faint); white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .meta b { color:var(--muted); font-weight:600; }
+  .grow { flex:1; }
+  .chip { flex:none; display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 10px; border-radius:99px;
+          border:1px solid var(--line); background:var(--surface); color:var(--faint);
+          font-size:12.5px; font-weight:600; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .chip .dot { width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .chip.on { color:var(--ok); border-color:transparent; background:var(--ok-soft); }
+
+  .toolbar { display:flex; align-items:center; gap:6px; padding:7px 12px; border-bottom:1px solid var(--line); }
+  button { height:32px; padding:0 12px; border-radius:6px; border:1px solid var(--line); background:var(--surface);
+           display:inline-flex; align-items:center; gap:7px; font-size:13.5px; font-weight:550; white-space:nowrap;
+           cursor:pointer; transition:background 140ms ease, border-color 140ms ease, color 140ms ease, opacity 140ms ease; }
+  button:hover:not(:disabled) { border-color:color-mix(in srgb, var(--accent) 40%, var(--line)); }
+  button:active:not(:disabled) { background:var(--accent-soft); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  button svg { width:16px; height:16px; flex:none; }
+  button.primary { background:var(--accent); border-color:transparent; color:#fff; }
+  button.primary:hover:not(:disabled) { background:var(--accent-strong); }
+  button.danger { color:var(--danger); }
+  button.danger:hover:not(:disabled) { background:var(--danger-soft); border-color:color-mix(in srgb, var(--danger) 35%, var(--line)); }
+  button.stop { border-color:transparent; background:transparent; color:var(--danger); height:26px; padding:0 8px; font-size:12.5px; }
+  button.stop:hover:not(:disabled) { background:var(--danger-soft); border-color:transparent; }
+  .selinfo { display:inline-flex; align-items:center; height:24px; padding:0 9px; border-radius:99px;
+             background:var(--accent-soft); color:var(--accent-text); font-size:12px; font-weight:650;
+             white-space:nowrap; font-variant-numeric:tabular-nums; }
+
+  /* tabel: lebar kolom = proporsi dari lebar window, bisa di-drag */
+  main { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; scrollbar-gutter:stable; }
+  table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; }
+  thead th { position:sticky; top:0; z-index:2; background:var(--bg); text-align:left; height:28px;
+             font-size:12px; font-weight:650; letter-spacing:.04em; text-transform:uppercase; color:var(--faint);
+             padding:0 8px; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  tbody td { height:32px; padding:0 8px; border-bottom:1px solid var(--line);
+             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13.5px; }
+  tbody tr:hover td { background:var(--surface); }
+  tbody tr.sel td { background:var(--accent-soft); }
+  tbody tr.sel td:first-child { box-shadow:inset 2px 0 0 var(--accent); }
+  th.c-act, td.c-act { width:34px; padding:0 6px 0 0; text-align:right; }
+  button.icon { width:24px; height:24px; padding:0; justify-content:center; border-color:transparent; background:transparent; color:var(--muted); }
+  button.icon:hover:not(:disabled) { background:var(--surface); border-color:var(--line); color:var(--accent); }
+  button.icon svg { width:14px; height:14px; }
+  th.c-check, td.c-check { width:20px; padding:0 0 0 6px; }
+  th.c-check input, td.c-check input { margin:0; display:block; }
+  th:nth-child(2), td:nth-child(2) { padding-left:2px; }
+  td.name { font-weight:600; }
+  td.folder { font-size:13px; color:var(--faint); font-family:ui-monospace,SFMono-Regular,monospace; }
+  td.acc { font-size:13px; color:var(--faint); }
+  th.c-act, td.c-act { width:36px; padding:0 8px 0 0; text-align:right; }
+  td.c-act button { width:26px; height:26px; padding:0; justify-content:center; border-color:transparent; background:transparent; color:var(--muted); }
+  td.c-act button:hover:not(:disabled) { background:var(--accent-soft); color:var(--accent-text); border-color:transparent; }
+  td.c-act button.stop { color:var(--danger); }
+  td.c-act button.stop:hover:not(:disabled) { background:var(--danger-soft); color:var(--danger); }
+  input[type=checkbox] { width:14px; height:14px; accent-color:var(--accent); cursor:pointer; vertical-align:middle; }
+  th .grip { position:absolute; top:0; right:0; width:9px; height:100%; cursor:col-resize; display:flex;
+             align-items:center; justify-content:center; }
+  th .grip::before { content:''; width:1px; height:14px; background:var(--line); border-radius:1px; }
+  th .grip:hover::before, th .grip:active::before { width:3px; background:var(--accent); }
+  .tag { display:inline-flex; align-items:center; height:18px; padding:0 6px; margin-left:6px; border-radius:4px;
+         font-size:11px; font-weight:650; letter-spacing:.02em; text-transform:uppercase;
+         background:var(--accent-soft); color:var(--accent-text); vertical-align:1px; }
+  .pill { display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:4px;
+          font-size:12.5px; font-weight:600; color:var(--muted); background:var(--surface); border:1px solid var(--line); }
+  .pill.running { color:var(--run); background:var(--run-soft); border-color:transparent; }
+  .empty { padding:34px 16px; text-align:center; color:var(--muted); }
+  .empty[hidden] { display:none; }
+
+  footer { display:flex; align-items:center; gap:8px; padding:0 12px; height:30px;
+           border-top:1px solid var(--line); background:var(--surface); font-size:12.5px; }
+  #log { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+         font-family:ui-monospace,SFMono-Regular,monospace; color:var(--muted); }
+  #log.err { color:var(--danger); } #log.ok { color:var(--ok); }
+  .prog { display:flex; align-items:center; gap:7px; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .prog[hidden] { display:none; }
+  progress { width:90px; height:4px; appearance:none; border:0; border-radius:99px; overflow:hidden; background:var(--line); }
+  progress::-webkit-progress-bar { background:var(--line); }
+  progress::-webkit-progress-value { background:var(--accent); }
+
+  dialog { border:1px solid var(--line); border-radius:9px; padding:0; width:360px; max-width:calc(100vw - 24px);
+           background:var(--surface); color:var(--text); box-shadow:0 14px 36px rgba(0,0,0,.3); }
+  dialog::backdrop { background:rgba(8,10,14,.45); }
+  .dlg-head { padding:14px 16px 4px; }
+  .dlg-head h2 { margin:0; font-size:13.5px; font-weight:650; }
+  .dlg-head p { margin:3px 0 0; font-size:12px; color:var(--muted); }
+  .dlg-body { padding:10px 16px 0; display:grid; gap:8px; }
+  .row { display:grid; grid-template-columns:84px 1fr; gap:8px; align-items:center; }
+  .row label { font-size:12px; color:var(--muted); }
+  .row input { height:28px; padding:0 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); font-size:13px; }
+  .row input:hover { border-color:color-mix(in srgb, var(--accent) 40%, var(--line)); }
+  .preview { grid-column:1/-1; font-family:ui-monospace,SFMono-Regular,monospace; font-size:12px;
+             color:var(--accent-text); background:var(--accent-soft); border-radius:6px; padding:6px 8px; }
+  .hint { grid-column:1/-1; font-size:11.5px; color:var(--faint); }
+  .hint code { font-family:ui-monospace,monospace; background:var(--bg); padding:1px 4px; border-radius:4px; }
+  .dlg-foot { display:flex; justify-content:flex-end; gap:6px; padding:13px 16px 15px; }
+  ul.list { margin:6px 0 0; padding-left:16px; max-height:140px; overflow:auto; font-size:12.5px; color:var(--muted); }
+  ul.list li { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg>
+  </span>
+  <span class="meta" id="meta">loading…</span>
+  <span class="grow"></span>
+  <span class="chip" id="runChip"><span class="dot"></span><span id="runText">Brave closed</span></span>
+  <button class="stop" id="btnStop" hidden onclick="stopAll()" title="Close all Brave windows gracefully">Stop all</button>
+</header>
+
+<div class="toolbar">
+  <button class="primary" id="btnSync" onclick="doSync()"
+          title="Mirror Default (preferences, bookmarks, extensions) into every other profile. Needs Brave closed.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+    Sync
+  </button>
+  <button id="btnPolicy" onclick="run('apply_policy',{},'Applying policy…')"
+          title="Optional machine-wide policy (UAC): homepage, extension force-install, Rewards/News off.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>
+    Policy
+  </button>
+  <button onclick="openNew()" title="Create profiles as Prefix + number">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    New
+  </button>
+  <span class="grow"></span>
+  <span class="selinfo" id="selInfo" hidden></span>
+  <button id="btnRename" hidden onclick="openRename()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+    Rename
+  </button>
+  <button id="btnDelete" class="danger" hidden onclick="askDelete()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+    Delete
+  </button>
+</div>
+
+<main id="main">
+  <table id="tbl">
+    <colgroup><col id="col0"><col id="col1"><col id="col2"><col id="col3"><col id="col4"><col id="col5"></colgroup>
+    <thead>
+      <tr>
+        <th class="c-check"><input type="checkbox" id="all" aria-label="Select all" onchange="toggleAll(this.checked)"></th>
+        <th>Name<span class="grip" data-col="1"></span></th>
+        <th>Folder<span class="grip" data-col="2"></span></th>
+        <th title="Google account of this Brave profile, as recorded by Brave in Local State (user_name / gaia_name)">Account<span class="grip" data-col="3"></span></th>
+        <th>Status<span class="grip" data-col="4"></span></th>
+        <th class="c-act"></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="empty" id="empty" hidden>No profiles yet — use “New”.</div>
+</main>
+
+<footer>
+  <span id="log" role="status" aria-live="polite">Ready</span>
+  <span class="prog" id="prog" hidden><span id="progText"></span><progress id="progBar" value="0" max="1"></progress></span>
+</footer>
+
+<dialog id="newdlg">
+  <form method="dialog" onsubmit="return false">
+    <div class="dlg-head"><h2>New profiles</h2><p>Creates Prefix + number for the given count.</p></div>
+    <div class="dlg-body">
+      <div class="row"><label for="nPrefix">Prefix</label><input id="nPrefix" type="text" placeholder="HM" spellcheck="false"></div>
+      <div class="row"><label for="nStart">Start at</label><input id="nStart" type="number" value="1" min="0" step="1"></div>
+      <div class="row"><label for="nDigits">Digits</label><input id="nDigits" type="number" value="2" min="1" max="6" step="1"></div>
+      <div class="row"><label for="nCount">Count</label><input id="nCount" type="number" value="5" min="1" max="200" step="1"></div>
+      <div class="preview" id="nPreview">HM01 … HM05</div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="button" class="primary" onclick="doCreate()">Create</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="renamedlg">
+  <form method="dialog" onsubmit="return false">
+    <div class="dlg-head"><h2>Rename <span id="rnCount">0</span> profile(s)</h2><p>Old prefix is stripped, then the new prefix is applied.</p></div>
+    <div class="dlg-body">
+      <div class="row"><label for="rPrefix">Prefix</label><input id="rPrefix" type="text" placeholder="(empty)" spellcheck="false"></div>
+      <div class="row"><label for="rPattern">Pattern</label><input id="rPattern" type="text" value="{n}" spellcheck="false"></div>
+      <div class="hint"><code>{n}</code> = running number. Empty pattern only changes the prefix.</div>
+      <div class="row"><label for="rStart">Start at</label><input id="rStart" type="number" value="1" min="0" step="1"></div>
+      <div class="row"><label for="rStep">Step</label><input id="rStep" type="number" value="1" step="1"></div>
+      <div class="hint">Empty prefix → the pattern must contain <code>{n}</code>.</div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="button" class="primary" onclick="doRename()">Apply</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirmdlg">
+  <form method="dialog" onsubmit="return false">
+    <div class="dlg-head">
+      <h2 id="cfTitle">Confirm</h2>
+      <p id="cfBody"></p>
+      <ul class="list" id="cfList" hidden></ul>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" onclick="cfDone(false)">Cancel</button>
+      <button type="button" id="cfOk" onclick="cfDone(true)">Confirm</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const invoke = window.__TAURI__.core.invoke;
+const $ = id => document.getElementById(id);
+let S = null, busy = false, tick = null;
+const sel = new Set();
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nameOf = d => S?.profiles.find(p => p.dir === d)?.name || d;
+// Ikon dibuat lewat DOM, bukan string SVG: tag </svg> di dalam <script> memutus dokumen.
+function iconSvg(shape) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'currentColor');
+  const el = document.createElementNS(ns, shape === 'play' ? 'path' : 'rect');
+  if (shape === 'play') el.setAttribute('d', 'M8 5l11 7-11 7z');
+  else { el.setAttribute('x', '6'); el.setAttribute('y', '6'); el.setAttribute('width', '12'); el.setAttribute('height', '12'); el.setAttribute('rx', '1.5'); }
+  svg.appendChild(el);
+  return svg.outerHTML;
+}
+const ICON = { play: iconSvg('play'), stop: iconSvg('stop') };
+
+async function profileAction(dir, start) {
+  if (busy) return;
+  run(start ? 'start_profile' : 'stop_profile', { dir },
+      start ? `Opening ${nameOf(dir)}…` : `Stopping ${nameOf(dir)}…`);
+}
+
+/* ---- kolom: auto-fit dari teks terpanjang, bisa digeser lewat grip ---- */
+const CHECK_W = 20, ACT_W = 34, MIN_W = [0, 96, 84, 116, 104, 34], PAD = 20;
+let widths = null, autoFit = true, dragWidths = null;
+
+const accText = p => p.account || (p.google === 2 ? 'Signed in' : p.google === 1 ? 'cookies only' : 'Signed out');
+
+const meas = document.createElement('canvas').getContext('2d');
+const textW = (t, f) => { meas.font = f; return Math.ceil(meas.measureText(t).width); };
+
+function autoWidths(avail) {
+  const head = '650 12px ui-sans-serif, system-ui, sans-serif';
+  const body = '13px ui-sans-serif, system-ui, sans-serif';
+  const pill = '600 12.5px ui-sans-serif, system-ui, sans-serif';
+  const ps = S?.profiles || [];
+  const longest = (vals, font, h) => Math.max(textW(h, head), ...vals.map(v => textW(v || '', font))) + PAD;
+  const w = [CHECK_W, 0, 0, 0, 0, ACT_W];
+  w[2] = Math.max(MIN_W[2], longest(ps.map(p => p.dir), body, 'FOLDER'));
+  w[3] = Math.max(MIN_W[3], longest(ps.map(accText), body, 'ACCOUNT'));
+  w[4] = Math.max(MIN_W[4], longest(ps.map(p => p.running ? 'Running' : p.opened ? 'Not running' : 'Unopened'), pill, 'STATUS'));
+  w[1] = Math.max(MIN_W[1], avail - (w[0] + w[2] + w[3] + w[4] + w[5]));
+  let over = w.reduce((x, y) => x + y, 0) - avail;
+  for (const i of [3, 4, 2, 1]) {          // susutkan kolom terlebar dulu
+    if (over <= 0) break;
+    const take = Math.min(w[i] - MIN_W[i], over);
+    if (take > 0) { w[i] -= take; over -= take; }
+  }
+  return w;
+}
+
+function layout() {
+  const avail = $('main').clientWidth - 1;
+  if (autoFit) widths = autoWidths(avail);
+  else if (dragWidths) widths = dragWidths.slice();
+  if (!widths) return;
+  const total = widths.reduce((x, y) => x + y, 0);
+  if (total !== avail) widths[1] = Math.max(MIN_W[1], widths[1] + (avail - total));
+  widths.forEach((w, i) => { const c = $('col' + i); if (c) c.style.width = w + 'px'; });
+}
+
+function saveWidths() { try { localStorage.setItem('bpm.cols', JSON.stringify(dragWidths)); } catch {} }
+function loadWidths() {
+  try {
+    const w = JSON.parse(localStorage.getItem('bpm.cols') || 'null');
+    if (Array.isArray(w) && w.length === 6) { dragWidths = w; autoFit = false; }
+  } catch {}
+}
+
+document.querySelectorAll('.grip').forEach(grip => {
+  grip.addEventListener('dblclick', e => {
+    e.preventDefault();
+    autoFit = true;
+    dragWidths = null;
+    try { localStorage.removeItem('bpm.cols'); } catch {}
+    render();
+  });
+  grip.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const i = Number(grip.dataset.col);
+    const startX = e.clientX, startW = widths[i], nextW = widths[i + 1] ?? 0;
+    const move = ev => {
+      const minB = i + 1 < widths.length ? MIN_W[i + 1] : 0;
+      const grow = i + 1 < widths.length ? nextW - minB : 0;
+      const delta = Math.max(-(startW - MIN_W[i]), Math.min(grow, ev.clientX - startX));
+      const a = Math.max(MIN_W[i], startW + delta);
+      const b = i + 1 < widths.length ? Math.max(MIN_W[i + 1], nextW - delta) : nextW;
+      if (a === widths[i] && b === (widths[i + 1] ?? 0)) return;
+      widths[i] = a;
+      if (i + 1 < widths.length) widths[i + 1] = b;
+      dragWidths = widths.slice();
+      autoFit = false;
+      widths.forEach((w, k) => { $('col' + k).style.width = w + 'px'; });
+    };
+    autoFit = false;
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      saveWidths();
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+});
+
+function say(msg, kind = '') {
+  const log = $('log');
+  log.className = kind;
+  log.textContent = `${new Date().toLocaleString('en-GB', {hour12:false})} · ${msg}`;
+  log.title = log.textContent;
+}
+
+function render() {
+  const ps = S.profiles, ready = ps.filter(p => p.opened).length;
+  $('meta').innerHTML = `<b>${ps.length}</b> profiles · <b>${ready}</b> ready`;
+  $('meta').title = S.user_data_dir;
+
+  const open = !!S.brave_open, n = sel.size;
+  $('runChip').className = 'chip' + (open ? ' on' : '');
+  $('runText').textContent = open
+    ? `Brave running · ${S.brave_running} profile${S.brave_running === 1 ? '' : 's'}`
+    : 'Brave closed';
+  $('btnStop').hidden = !open;
+  $('btnSync').disabled = busy || open;
+
+  $('selInfo').hidden = n === 0;
+  $('btnRename').hidden = n === 0;
+  $('btnDelete').hidden = n === 0;
+  if (n) $('selInfo').textContent = `${n} selected`;
+  $('btnRename').disabled = busy;
+  $('btnDelete').disabled = busy;
+
+  $('rows').innerHTML = ps.map(p => {
+    const st = p.running ? ['Running', 'running'] : p.opened ? ['Not running', ''] : ['Unopened', ''];
+    const acc = accText(p);
+    return `<tr class="${sel.has(p.dir) ? 'sel' : ''}">
+      <td class="c-check"><input type="checkbox" data-dir="${esc(p.dir)}" aria-label="Select ${esc(p.name)}" ${sel.has(p.dir) ? 'checked' : ''} onchange="toggle('${esc(p.dir)}',this.checked)"></td>
+      <td class="name" title="${esc(p.name)}">${esc(p.name)}${p.dir === S.last_used ? '<span class="tag">last</span>' : ''}</td>
+      <td class="folder" title="${esc(p.dir)}">${esc(p.dir)}</td>
+      <td class="acc" title="${esc(p.account ? 'Google account recorded by Brave: ' + p.account : (p.google === 2 ? 'Google sign-in cookies found in this profile (name not recorded by Brave)' : 'No Google sign-in cookies in this profile'))}">${esc(acc)}</td>
+      <td><span class="pill ${st[1]}">${st[0]}</span></td>
+      <td class="c-act">${p.running
+        ? `<button class="icon" title="Close this profile's Brave windows" aria-label="Stop ${esc(p.name)}" onclick="profileAction('${esc(p.dir)}',false)">${ICON.stop}</button>`
+        : `<button class="icon" title="Open in Brave" aria-label="Start ${esc(p.name)}" onclick="profileAction('${esc(p.dir)}',true)">${ICON.play}</button>`}</td>
+    </tr>`;
+  }).join('');
+
+  $('empty').hidden = ps.length > 0;
+  const boxes = [...document.querySelectorAll('#rows input[type=checkbox]')];
+  const picked = boxes.filter(x => x.checked).length;
+  $('all').checked = boxes.length > 0 && picked === boxes.length;
+  $('all').indeterminate = picked > 0 && picked < boxes.length;
+
+  const j = S.job;
+  $('prog').hidden = !j;
+  if (j) {
+    $('progText').textContent = `${j.op} ${j.done}/${j.total}`;
+    $('progBar').max = Math.max(j.total, 1);
+    $('progBar').value = j.done;
+  }
+  layout();
+}
+
+async function load() {
+  try { S = await invoke('get_state'); } catch (e) { say('State read failed: ' + e, 'err'); return; }
+  render();
+}
+
+async function run(cmd, args, label) {
+  if (busy) return;
+  busy = true; render();
+  say(label || '…');
+  clearInterval(tick);
+  tick = setInterval(load, 500);
+  const started = performance.now();
+  try {
+    const msg = await invoke(cmd, args);
+    const secs = ((performance.now() - started) / 1000).toFixed(2);
+    say(`${msg} · ${secs}s`, /skipped|nothing/i.test(msg) ? '' : 'ok');
+  } catch (e) {
+    say(String(e && e.message ? e.message : e), 'err');
+  }
+  clearInterval(tick);
+  busy = false;
+  await load();
+}
+
+function rowAction(dir, running) {
+  if (busy) return;
+  const cmd = running ? 'stop_profile' : 'start_profile';
+  run(cmd, { dir }, running ? `Stopping ${dir}…` : `Starting ${dir}…`);
+}
+
+function toggle(dir, on) { on ? sel.add(dir) : sel.delete(dir); render(); }
+function toggleAll(on) {
+  document.querySelectorAll('#rows input[type=checkbox]').forEach(c => on ? sel.add(c.dataset.dir) : sel.delete(c.dataset.dir));
+  render();
+}
+
+function previewNames() {
+  const prefix = $('nPrefix').value;
+  const start = Number($('nStart').value) || 0;
+  const digits = Math.min(Math.max(Number($('nDigits').value) || 1, 1), 6);
+  const count = Math.min(Math.max(Number($('nCount').value) || 1, 1), 200);
+  const at = k => prefix + String(start + k).padStart(digits, '0');
+  $('nPreview').textContent = `${at(0)} … ${at(count - 1)}   (${count})`;
+  return { prefix, start, digits, count };
+}
+function openNew() {
+  $('nPrefix').value = S.prefix || '';
+  previewNames();
+  $('newdlg').showModal();
+  setTimeout(() => $('nPrefix').focus(), 20);
+}
+function doCreate() {
+  const { prefix, start, digits, count } = previewNames();
+  $('newdlg').close();
+  run('create_bulk', { prefix, start, digits, count }, `Creating ${count} profiles…`);
+}
+function openRename() {
+  if (!sel.size) return;
+  $('rnCount').textContent = sel.size;
+  $('rPrefix').value = S.prefix || '';
+  $('rPattern').value = '{n}';
+  $('rStart').value = 1;
+  $('rStep').value = 1;
+  $('renamedlg').showModal();
+  setTimeout(() => $('rPrefix').focus(), 20);
+}
+function doRename() {
+  const dirs = [...sel];
+  const args = { dirs, prefix: $('rPrefix').value, pattern: $('rPattern').value,
+                 start: Number($('rStart').value) || 0, step: Number($('rStep').value) || 1 };
+  $('renamedlg').close();
+  sel.clear(); render();
+  run('rename_selected', args, `Renaming ${dirs.length} profile(s)…`);
+}
+
+let cfDone = () => {};
+function askConfirm(title, body, okLabel = 'Confirm', danger = false, list = []) {
+  $('cfTitle').textContent = title;
+  $('cfBody').textContent = body || '';
+  const ul = $('cfList');
+  ul.hidden = list.length === 0;
+  ul.innerHTML = list.map(x => `<li>${esc(x)}</li>`).join('');
+  const ok = $('cfOk');
+  ok.textContent = okLabel;
+  ok.className = danger ? 'danger' : 'primary';
+  $('confirmdlg').showModal();
+  setTimeout(() => ok.focus(), 20);
+  return new Promise(res => { cfDone = v => { $('confirmdlg').close(); res(v); }; });
+}
+$('confirmdlg').addEventListener('cancel', e => { e.preventDefault(); cfDone(false); });
+
+async function askDelete() {
+  if (!sel.size) return;
+  const picked = [...sel];
+  const ok = await askConfirm(
+    `Delete ${picked.length} profile${picked.length > 1 ? 's' : ''}?`,
+    'All data in these profile folders is removed. This cannot be undone.',
+    'Delete', true, picked.map(nameOf));
+  if (!ok) return;
+  sel.clear(); render();
+  run('delete_many', { dirs: picked }, `Deleting ${picked.length} profile(s)…`);
+}
+
+async function stopAll() {
+  const ok = await askConfirm('Stop all Brave windows?',
+    'Brave is asked to close normally so it saves its session.', 'Stop all', true);
+  if (!ok) return;
+  run('stop_all', {}, 'Stopping Brave…');
+}
+
+async function doSync() {
+  const ok = await askConfirm('Sync from Default?',
+    'Preferences, bookmarks and extensions of every other profile are overwritten with Default’s.', 'Sync');
+  if (!ok) return;
+  run('sync_default', {}, 'Syncing…');
+}
+
+['nPrefix','nStart','nDigits','nCount'].forEach(id => $(id).addEventListener('input', previewNames));
+document.querySelectorAll('dialog#newdlg, dialog#renamedlg').forEach(d =>
+  d.addEventListener('click', e => { if (e.target === d) d.close(); }));
+document.addEventListener('keydown', e => {
+  const typing = ['INPUT','TEXTAREA'].includes(document.activeElement.tagName);
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !typing) { e.preventDefault(); toggleAll(true); }
+  if (e.key === 'Escape') document.querySelectorAll('dialog[open]').forEach(d => { if (d.id !== 'confirmdlg') d.close(); });
+});
+
+window.addEventListener('resize', layout);
+loadWidths();
+load().then(() => setInterval(() => { if (!busy) load(); }, 2500));
+</script>
+</body>
+</html>
